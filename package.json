@@ -1,0 +1,95 @@
+{
+  "name": "heard4u",
+  "version": "1.0.0",
+  "description": "heard4u",
+  "appName": "heard4u",
+  "main": "app/main.js",
+  "scripts": {
+    "dev": "node ./build/dev.js",
+    "build": "node ./build/build.js",
+    "test": "mocha"
+  },
+  "author": "Velunce",
+  "license": "ISC",
+  "build": {
+    "asar": true,
+    "productName": "heard4u",
+    "appId": "com.electron.template",
+    "copyright": "Copyright © template",
+    "directories": {
+      "output": "pack"
+    },
+    "files": [
+      "app/**"
+    ],
+    "mac": {
+      "identity": "com.electron.templat",
+      "target": [
+        "dmg"
+      ],
+      "artifactName": "${productName}.${ext}"
+    },
+    "dmg": {
+      "title": "${productName}",
+      "artifactName": "${productName}.${ext}"
+    },
+    "win": {
+      "legalTrademarks": "Copyright © template",
+      "publisherName": "electron",
+      "requestedExecutionLevel": "highestAvailable",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "ia32"
+          ]
+        }
+      ],
+      "artifactName": "${productName}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "allowElevation": true,
+      "artifactName": "${productName}-installer-V${version}.${ext}",
+      "runAfterFinish": true,
+      "shortcutName": "heard4u"
+    }
+  },
+  "devDependencies": {
+    "@babel/core": "^7.9.6",
+    "@babel/plugin-proposal-function-bind": "^7.8.3",
+    "@babel/plugin-syntax-dynamic-import": "^7.8.3",
+    "@babel/polyfill": "^7.8.7",
+    "@babel/preset-env": "^7.9.6",
+    "adm-zip": "^0.4.14",
+    "archiver": "^4.0.1",
+    "axios": "^0.19.2",
+    "babel-loader": "^8.1.0",
+    "css-hot-loader": "^1.4.4",
+    "css-loader": "^3.5.3",
+    "electron": "^8.5.5",
+    "electron-builder": "^22.4.0",
+    "electron-settings": "3.2.0",
+    "file-loader": "^6.0.0",
+    "html-webpack-plugin": "^4.3.0",
+    "inline-worker": "^1.1.0",
+    "less": "^3.11.1",
+    "less-loader": "^6.1.0",
+    "mini-css-extract-plugin": "^0.9.0",
+    "mocha": "^9.1.4",
+    "progress-bar-webpack-plugin": "^2.1.0",
+    "spectron": "^15.0.0",
+    "url-loader": "^4.1.0",
+    "vue": "^2.6.11",
+    "vue-loader": "^15.9.2",
+    "vue-template-compiler": "^2.6.11",
+    "webpack": "^4.43.0",
+    "webpack-dev-server": "^3.11.0",
+    "worker-loader": "^3.0.8"
+  },
+  "dependencies": {
+    "uuid": "^8.3.2"
+  }
+}
