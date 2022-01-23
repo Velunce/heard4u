@@ -1,5 +1,4 @@
 import InlineWorker from "inline-worker";
-import { Buffer } from "buffer";
 
 export class Recorder {
   config = {
