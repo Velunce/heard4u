@@ -14,7 +14,7 @@
       </div>
       <div class="panel-body" v-if="tabIndex === 0">
         <!-- contents -->
-        <textarea class="form-input" id="realtime-text" placeholder="Press start to show your record." readonly v-model="realtimeText"></textarea>
+        <textarea class="form-input" id="realtime-text" :placeholder="realtimeTextPlaceholder" readonly v-model="realtimeText"></textarea>
         <wave :unitArry="waveArr"></wave>
       </div>
       <div class="panel-body" v-if="tabIndex === 1">
@@ -35,10 +35,8 @@
           <button v-if="!onRecording" class="btn btn-primary" :class="{ disabled: onRecording }" @click="startRecord">
             Start Record&nbsp;<i class="icon icon-forward"></i>
           </button>
-          <button v-if="onRecording" class="btn btn-success" @click="stopRecord">Stop Record&nbsp;<i class="icon icon-shutdown"></i></button>
-        </div>
-        <div class="btn-group btn-group-block" v-if="tabIndex === 1">
-          <button class="btn btn-error" @click="saveRecord">Save to MP3&nbsp;<i class="icon icon-download"></i></button>
+          <button v-if="onRecording" class="btn btn-warning" @click="stopRecord">Stop Record&nbsp;<i class="icon icon-shutdown"></i></button>
+          <button v-if="!onRecording && isStoped" class="btn btn-error" @click="saveRecord">Save to MP3&nbsp;<i class="icon icon-download"></i></button>
         </div>
       </div>
     </div>
@@ -48,15 +46,27 @@
 <script>
 import wave from "./wave.vue";
 import RecorderWorker from "@/render/libs/recorder/RecorderWorker.js";
-import { v4 as uuidv4 } from "uuid";
-
+import objectTools from "../libs/util/objectTools";
+// import { speech as AipSpeech } from "../libs/baiduaip/index";
+const wavFile = "app/upload.wav";
+const code = {
+  GBK: "GBK",
+  BIN: "binary",
+  UTF8: "utf-8",
+  BASE64: "base64",
+};
+const baiduAPI = {
+  id: 25546571,
+  key: "hvrgOgcraEhvS1VYUBtFUU51",
+  secret: "143Np3XGZK3DPXuutdolyloL8emzHkGO",
+};
 const { dialog } = require("electron").remote;
 const fs = require("fs");
+// const client = new AipSpeech(baiduAPI.id, baiduAPI.key, baiduAPI.secret);
+
 export default {
   data() {
     return {
-      socket: null,
-      path: `wss://vop.baidu.com/realtime_asr?sn=${uuidv4()}`,
       recorder: null,
       tabs: [
         { name: "Realtime Text" },
@@ -66,11 +76,19 @@ export default {
       audioOutputList: [], // list of audio output devices
       waveArr: [],
       onRecording: false,
+      onUploading: false,
+      isStoped: false,
       realtimeText: "",
+      realtimeTextPlaceholder: "点“Start”，跟我聊聊天",
       tabIndex: 0,
+      startTime: 0,
+      credential: null,
     };
   },
   components: { wave },
+  mounted() {
+    this.getBaiduToken();
+  },
   created: function() {
     this.recorderWorker = new RecorderWorker();
     console.log(this.recorderWorker);
@@ -81,20 +99,45 @@ export default {
       this.audioOutputList = this.recorderWorker.audioOutputList;
     });
     this.recorderWorker.on("devicechange", () => {});
-
     this.recorderWorker.on("audioprocess", (data) => {
-      console.log(data.length);
-      this.drawWave(data);
+      const { array, blob } = data;
+      // console.log(array[0]);
+      // console.log(blob);
+      // // 测试发现当 array的第一个元素的值小于130的时为无效的声音
+      console.log(array[0]);
+      if (array[0] < 133 && !this.onUploading) {
+        this.saveUploadRecord();
+      } else {
+        // 采集的声音有效
+        if (!this.onUploading && !this.onRecording) {
+          this.startRecord();
+        }
+      }
+
+      if (parseInt(new Date().getTime() / 1000) - this.startTime === 60) {
+        this.stopRecord();
+      }
+
+      this.drawWave(array);
     });
-    this.recorderWorker.on("");
   },
   methods: {
+    getBaiduToken() {
+      const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${baiduAPI.key}&client_secret=${baiduAPI.secret}`;
+      fetch(url)
+        .then((res) => res.json())
+        .then((data) => {
+          console.log(data);
+          this.credential = data;
+        });
+    },
     // 开始录音
     startRecord() {
       if (!this.recorderWorker || !this.recorderWorker.supported) {
         alert("硬件不支持或当前电脑已禁用麦克风！");
         return;
       }
+      this.startTime = parseInt(new Date().getTime() / 1000);
       if (this.recorderWorker.recording) return;
       this.recorderWorker.startRecord();
       this.onRecording = true;
@@ -103,6 +146,11 @@ export default {
     stopRecord() {
       this.recorderWorker.stopRecord();
       this.onRecording = false;
+      this.isStoped = true;
+      this.saveUploadRecord();
+    },
+    // 保存录音
+    saveRecord() {
       this.recorderWorker.saveMP3((buffer) => {
         const savePath = dialog.showSaveDialogSync({
           title: "保存文件",
@@ -114,7 +162,7 @@ export default {
           ],
         });
         if (!savePath || !savePath.endsWith(".mp3")) {
-          alert("必须保存为mp3格式");
+          alert("旧的不去新的不来");
           return;
         }
         fs.writeFile(savePath, buffer, (err) => {
@@ -128,33 +176,57 @@ export default {
         });
       });
     },
-    // 保存录音
-    saveRecord() {
-      this.onRecording = false;
-      this.recorderWorker.saveMP3((buffer) => {
-        const savePath = dialog.showSaveDialogSync({
-          title: "保存文件",
-          filters: [
-            {
-              name: "mp3",
-              extensions: [".mp3"],
-            },
-          ],
-        });
-        if (!savePath || !savePath.endsWith(".mp3")) {
-          alert("必须保存为mp3格式");
-          return;
-        }
-        fs.writeFile(savePath, buffer, (err) => {
+    saveUploadRecord() {
+      this.recorderWorker.saveWAV((buffer) => {
+        fs.writeFile(wavFile, buffer, (err) => {
           if (err) {
             console.log(err);
           } else {
             // 保存完之后清除数据，或在其他合适时机清除，否则录音数据一直叠加
             this.recorderWorker.clear();
-            alert(`文件已保存至:${savePath}`);
+            this.getTextByRecord();
           }
         });
       });
+    },
+    getTextByRecord() {
+      let voice = fs.readFileSync(wavFile);
+      let voiceBuffer = new Buffer(voice);
+      let param = {
+        format: "wav",
+        rate: 16000,
+        channel: 1,
+        cuid: "ele_ai_vue",
+        token: this.credential.access_token,
+        dev_pid: 1537,
+        speech: voiceBuffer && voiceBuffer.toString(code.BASE64),
+        len: voiceBuffer && voiceBuffer.toString(code.BIN).length,
+      };
+
+      let requestParam = objectTools.merge(param);
+
+      fetch("http://vop.baidu.com/server_api", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestParam),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log(data);
+          const { err_msg, result } = data;
+          if (err_msg === "success.") {
+            if (result[0] !== "") {
+              this.realtimeText += result[0];
+            } else {
+              this.realtimeTextPlaceholder = "服务器开小差了";
+            }
+          }
+          fs.unlinkSync(wavFile);
+          this.onUploading = false;
+        });
     },
     // 音轨
     drawWave(dataArray) {
@@ -165,41 +237,8 @@ export default {
     switchTab(index) {
       this.tabIndex = index;
     },
-    initWebSocket() {
-      if (typeof WebSocket === "undefined") {
-        alert("您的浏览器不支持socket");
-      } else {
-        // 实例化socket
-        this.socket = new WebSocket(this.path, "websocket");
-        // 监听socket连接
-        this.socket.onopen = this.openWebSocket;
-        // 监听socket错误信息
-        this.socket.onerror = this.errorWebSocket;
-        // 监听socket消息
-        this.socket.onmessage = this.getMessageWebSocket;
-      }
-    },
-    openWebSocket() {
-      console.log("socket连接成功");
-    },
-    errorWebSocket() {
-      console.log("连接错误");
-    },
-    getMessageWebSocket(msg) {
-      console.log(msg.data);
-      const { result } = msg.data;
-      this.realtimeText += JSON.stringify(result);
-    },
-    sendWebSocket(params) {
-      this.socket.send(params);
-    },
-    closeWebSocket() {
-      console.log("socket已经关闭");
-    },
   },
-  mounted() {
-    this.initWebSocket();
-  },
+
   beforeDestroy() {
     if (this.recorderWorker) {
       this.recorderWorker.destory();

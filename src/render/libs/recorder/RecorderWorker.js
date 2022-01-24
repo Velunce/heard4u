@@ -1,5 +1,6 @@
 import AudioRecorder from "./recorder.js";
 import MP3Converter from "./convertMP3/index.js";
+import fs from "fs";
 
 function RecorderWorker(option = {}) {
   this.supported = false; //是否支持
@@ -174,8 +175,11 @@ function RecorderWorker(option = {}) {
   // 实时录音回调函数,这里只把实时数据发送给订阅者
   this.onAudioProcess = () => {
     let dataArray = new Uint8Array(10);
+    this.audioRecordOriginal.push(dataArray[0]);
     this.recorder && this.recorder.analyser.getByteTimeDomainData(dataArray);
-    this.fire("audioprocess", dataArray);
+    this.recorder.getBuffer((buffer) => {
+      this.fire("audioprocess", { array: dataArray, blob: buffer });
+    });
   };
   // 保存每段录音buffer用于分析,这里需要保存每段实时数据,用于最后分析
   this.collectRecordBuffers = () => {
@@ -216,15 +220,43 @@ function RecorderWorker(option = {}) {
           const reader = new FileReader();
           reader.onload = (e) => {
             // arrayBuffer转换为buffer
+            console.log(e.target.result);
             const buffer = this.arrayBuffer2buffer(e.target.result);
             cb(buffer);
           };
           // 把blob对象读取为arrayBuffer
           reader.readAsArrayBuffer(blob);
-          console.log(blob);
         });
       });
   };
+  this.saveWAV = (cb) => {
+    this.recorder &&
+      this.recorder.exportWAV((float32Array) => {
+        let converter = new MP3Converter();
+        let sampleBits = this.recorder.config.sampleBits;
+        let channels = this.recorder.config.numChannels;
+        let sampleRate = this.recorder.context.sampleRate;
+        let config = {
+          samples: float32Array,
+          numChannels: channels,
+          sampleBits: sampleBits,
+          sampleRate: sampleRate,
+        };
+        // 录音数据交由converter后台处理
+        converter.convert(config, (blob) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            // arrayBuffer转换为buffer
+            console.log(e.target.result);
+            const buffer = this.arrayBuffer2buffer(e.target.result);
+            cb(buffer);
+          };
+          // 把blob对象读取为arrayBuffer
+          reader.readAsArrayBuffer(blob);
+        });
+      });
+  };
+
   // arrayBuffer -> buffer
   this.arrayBuffer2buffer = (arrayBuffer) => {
     let buf = new Buffer(arrayBuffer.byteLength);
