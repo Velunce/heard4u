@@ -228,7 +228,9 @@ export default {
           } catch (error) {
             console.log(error);
           }
-          this.startRecord();
+          if(this.onRecording){
+            this.startRecord();
+          }
         });
     },
     // 音轨
