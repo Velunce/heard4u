@@ -36,7 +36,7 @@
             Start Record&nbsp;<i class="icon icon-forward"></i>
           </button>
           <button v-if="onRecording" class="btn btn-warning" @click="stopRecord">Stop Record&nbsp;<i class="icon icon-shutdown"></i></button>
-          <button v-if="!onRecording && isStoped" class="btn btn-error" @click="saveRecord">Save to MP3&nbsp;<i class="icon icon-download"></i></button>
+          
         </div>
       </div>
     </div>
@@ -47,7 +47,6 @@
 import wave from "./wave.vue";
 import RecorderWorker from "@/render/libs/recorder/RecorderWorker.js";
 import objectTools from "../libs/util/objectTools";
-// import { speech as AipSpeech } from "../libs/baiduaip/index";
 const wavFile = "app/upload.wav";
 const code = {
   GBK: "GBK",
@@ -77,7 +76,6 @@ export default {
       waveArr: [],
       onRecording: false,
       onUploading: false,
-      isStoped: false,
       realtimeText: "",
       realtimeTextPlaceholder: "点“Start”，跟我聊聊天",
       tabIndex: 0,
@@ -105,17 +103,19 @@ export default {
       // console.log(blob);
       // // 测试发现当 array的第一个元素的值小于130的时为无效的声音
       console.log(array[0]);
-      if (array[0] < 133 && !this.onUploading) {
-        this.saveUploadRecord();
-      } else {
-        // 采集的声音有效
-        if (!this.onUploading && !this.onRecording) {
-          this.startRecord();
-        }
-      }
+      // socket 方案使用 blob arrayBuffer
+      // if (array[0] < 133 && !this.onUploading) {
 
-      if (parseInt(new Date().getTime() / 1000) - this.startTime === 60) {
-        this.stopRecord();
+      // } else {
+      //   // 采集的声音有效
+      //   if (!this.onUploading && !this.onRecording) {
+      //     this.startRecord();
+      //   }
+      // }
+      //非 socket 方案
+      if (parseInt(new Date().getTime() / 1000) - this.startTime === 5 && this.onRecording) {
+        this.recorderWorker.stopRecord();
+        this.saveUploadRecord()
       }
 
       this.drawWave(array);
@@ -146,11 +146,7 @@ export default {
     stopRecord() {
       this.recorderWorker.stopRecord();
       this.onRecording = false;
-      this.isStoped = true;
-      this.saveUploadRecord();
-    },
-    // 保存录音
-    saveRecord() {
+      
       this.recorderWorker.saveMP3((buffer) => {
         const savePath = dialog.showSaveDialogSync({
           title: "保存文件",
@@ -162,7 +158,7 @@ export default {
           ],
         });
         if (!savePath || !savePath.endsWith(".mp3")) {
-          alert("旧的不去新的不来");
+          alert("这就不要我了？");
           return;
         }
         fs.writeFile(savePath, buffer, (err) => {
@@ -175,6 +171,7 @@ export default {
           }
         });
       });
+      this.saveUploadRecord();
     },
     saveUploadRecord() {
       this.recorderWorker.saveWAV((buffer) => {
@@ -221,11 +218,17 @@ export default {
             if (result[0] !== "") {
               this.realtimeText += result[0];
             } else {
-              this.realtimeTextPlaceholder = "服务器开小差了";
-            }
+              this.realtimeTextPlaceholder = "小度好想什么也没有听到？再试试？";
+              
+            }            
           }
-          fs.unlinkSync(wavFile);
-          this.onUploading = false;
+    
+          try {
+            fs.unlink(wavFile);
+          } catch (error) {
+            console.log(error);
+          }
+          this.startRecord();
         });
     },
     // 音轨
